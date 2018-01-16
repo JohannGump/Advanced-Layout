@@ -7,6 +7,8 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
 
 import com.android.volley.Request;
 import com.android.volley.Response;
@@ -14,12 +16,23 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import sm.fr.advancedlayoutapp.modele.RandomUser;
+
 
 /**
  * A simple {@link Fragment} subclass.
  */
 public class RandomUserFragment extends Fragment {
 
+    private List<RandomUser> userList;
+    private ListView userlistView;
 
     public RandomUserFragment() {
         // Required empty public constructor
@@ -29,9 +42,38 @@ public class RandomUserFragment extends Fragment {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
+
+        getDataFromHttp();
+
         // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_random_user, container, false);
+        View view = inflater.inflate(R.layout.fragment_random_user, container, false);
+
+        userlistView = view.findViewById(R.id.randomUserListView);
+
+        return view;
     }
+
+    private void processResponse(String response){
+        //Transformation de la réponse json en list de RandomUser
+        userList = responseToList(response);
+
+        //Conversion de la liste de RandomUser en un tableau de String comportant
+        //uniquement le nom des utilisateurs
+        String[] data = new String[userList.size()];
+        for(int i=0; i < userList.size(); i++){
+            data[i] = userList.get(i).getName();
+        }
+
+        //Définition d'un ArrayAdapter pour alimenter la ListView
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this.getActivity(),
+                android.R.layout.simple_expandable_list_item_1,
+                data
+        );
+
+        userlistView.setAdapter(adapter);
+    }
+
 
     private void getDataFromHttp(){
         String url = "https://jsonplaceholder.typicode.com/users";
@@ -46,9 +88,10 @@ public class RandomUserFragment extends Fragment {
                     @Override
                     public void onResponse(String response) {
                         Log.i("HTTP", response);
-
+                        processResponse(response);
                     }
                 },
+
                 //Gestionnaire d'erreur
                 new Response.ErrorListener() {
                     @Override
@@ -62,4 +105,38 @@ public class RandomUserFragment extends Fragment {
         Volley  .newRequestQueue(this.getActivity())
                 .add(request);
     }
+
+    // Conversion d'une réponse json (chaine de caractères)
+    // en une liste de RandoUser
+
+    private List<RandomUser> responseToList(String response){
+        List<RandomUser> list = new ArrayList<>();
+
+        try {
+            JSONArray jsonUsers = new JSONArray(response);
+            JSONObject item;
+            for (int i = 0; i < jsonUsers.length(); i++){
+                item = (JSONObject) jsonUsers.get(i);
+
+                //Création d'un nouvel utilisateur
+                RandomUser user = new RandomUser();
+
+                //Hydratation de l'utilisateur
+                user.setName(item.getString("name"));
+                user.setEmail(item.getString("email"));
+
+                JSONObject geo = item.getJSONObject("address").getJSONObject("geo");
+
+                user.setLatitude(geo.getDouble("lat"));
+                user.setLongitude(geo.getDouble("lng"));
+
+                // ajout de l'utilisateur à la liste
+                list.add(user);
+            }
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        return list;
+    }
+
 }
